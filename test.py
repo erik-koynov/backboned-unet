@@ -3,11 +3,14 @@ from backboned_unet.attention import GridAttention, AdditiveAttention, Multiplic
 import torch
 #from segmentation_models import Unet
 if __name__ == "__main__":
-
+    device = 'cpu'
+    if torch.cuda.is_available():
+        print("CUDA IS AVAILABLE")
+        device = 'cuda'
     # simple test run
     input_shape = (3, 3, 128, 128)
     net = Unet(backbone_name='resnet50', attention_module=MultiplicativeImageAttention, concat_with_input=True, input_shape=input_shape)
-
+    net.to(device)
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters())
     print('Network initialized. Running a test batch.')
@@ -16,8 +19,8 @@ if __name__ == "__main__":
             batch = torch.empty(*input_shape).normal_()
             targets = torch.empty(1, 21, *input_shape[2:]).normal_()
 
-            out = net(batch)
-            loss = criterion(out, targets)
+            out = net(batch.to(device))
+            loss = criterion(out, targets.to(device))
             loss.backward()
             optimizer.step()
         print(out.shape)
