@@ -1,5 +1,5 @@
 # backboned-unet
-U-Nets for image segmentation with pre-trained backbones in PyTorch.
+U-Nets for image segmentation with pre-trained backbones in PyTorch. Adding Attention to skip connections is made available.
 
 ## Why another U-Net implementation?
 I was looking for an U-Net PyTorch implementation that can use pre-trained
