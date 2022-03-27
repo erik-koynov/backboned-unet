@@ -2,7 +2,7 @@ from ..base_classes import StrictMeta
 from abc import abstractmethod
 import torch
 import logging
-logger = logging.getLogger('backboned_unet')
+logger = logging.getLogger('backboned_unet_attention')
 
 class AttentionModule(metaclass=StrictMeta):
     @abstractmethod
@@ -40,7 +40,7 @@ class AttentionModule(metaclass=StrictMeta):
 
         attn_mask = self.compute_attention_map(key, query)
 
-        logger.info(f"query_ shape: {value_.shape}")
+        logger.info(f"value_ shape: {value_.shape}")
         result = torch.matmul(attn_mask.permute(0, 2, 1), value_)
         # print(result.)
         result = result.permute(0, 2, 1)  # BATCH x CHANNEL x H x W
@@ -48,5 +48,6 @@ class AttentionModule(metaclass=StrictMeta):
         logger.info(f"Attentive representation shape: {result.shape}")
         result = result.view(B, result.shape[1], H, W)
         logger.info(f"Attentive representation final shape: {result.shape}")
+        print(f"Attentive representation final shape: {result.shape}")
 
         return result, attn_mask

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .base import AttentionModule
 import logging
-logger = logging.getLogger('backboned_unet')
+logger = logging.getLogger('backboned_unet_attention')
 
 class GridAttention(AttentionModule, nn.Module):
     def __init__(self, key_channels: int, query_channels: int, out_channels: int):
@@ -62,7 +62,7 @@ class AdditiveAttention(AttentionModule, nn.Module):
         self.channel_transformation_key = nn.Conv2d(key_channels, out_channels, kernel_size=1)
         self.channel_transformation_value = nn.Conv2d(query_channels, out_channels, kernel_size=1)
         self.non_linearity_pre = nn.Tanh()
-        self.channel_flattening = nn.Conv2d(out_channels, 1, 1)
+        self.channel_flattening = nn.Conv2d(out_channels, 1, kernel_size=1)
         self.non_linearity_post = nn.Sigmoid()
 
     def compute_attention_map(self, key, query):
@@ -127,13 +127,13 @@ class MultiplicativeImageAttention(AttentionModule, nn.Module):
         # logger.info('key_: ', key_)
         logger.info(f"key shape after transform: {key_.shape}" )
         query_ = self.channel_transformation_value(query)
-        logger.info(f"value shape after transform: {query_.shape}")
+        logger.info(f"query shape after transform: {query_.shape}")
 
         key_ = self.transpose_and_reshape(key_)
         logger.info(f"key shape after reshape: {key_.shape}" )
 
         query_ = self.transpose_and_reshape(query_)
-        logger.info(f"value shape after reshape: {query_.shape}" )
+        logger.info(f"query shape after reshape: {query_.shape}" )
         # logger.info("key: ", key_)
         # logger.info("value: ", value_)
         attn_mask = torch.matmul(key_, query_.permute(0, 2, 1))

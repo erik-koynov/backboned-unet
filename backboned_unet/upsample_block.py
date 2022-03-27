@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 import logging
+from .attention import GridAttention
 logger = logging.getLogger("backboned_unet")
 
 
@@ -16,7 +17,11 @@ class UpsampleBlock(nn.Module):
         self.input_channels = ch_in
 
         if attention is not None and skip_in != 0:
-            self.attention_function = attention(key_channels=skip_in, query_channels=ch_out, out_channels=16)
+            if attention==GridAttention:
+                self.attention_function = attention(key_channels=ch_out, query_channels=skip_in, out_channels=16)
+                skip_in = ch_out
+            else:
+                self.attention_function = attention(key_channels=skip_in, query_channels=ch_out, out_channels=16)
         else:
             self.attention_function = None
 
@@ -60,8 +65,11 @@ class UpsampleBlock(nn.Module):
         if skip_connection is not None:
 
             if self.attention_function is not None:
-                skip_connection = self.attention_function(skip_connection, x, skip_connection)
-
+                if isinstance(self.attention_function, GridAttention):
+                    skip_connection = self.attention_function(x, skip_connection, x)
+                else:
+                    skip_connection = self.attention_function(skip_connection, x, skip_connection)
+            print(x.shape, skip_connection.shape)
             x = concatenate(x, skip_connection)
 
         if not self.parametric:

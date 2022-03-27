@@ -15,7 +15,7 @@ class Unet(nn.Module):
                  attention_module: type = None,
                  pretrained=True,
                  encoder_freeze=False,
-                 classes=21,
+                 classes=1,
                  decoder_filters=(256, 128, 64, 32, 16),
                  parametric_upsampling=True,
                  feature_layer_names='default',
@@ -52,7 +52,7 @@ class Unet(nn.Module):
         if attention_module in [AdditiveAttention, MultiplicativeImageAttention]:
             attention_module = [GridAttention]*(len(decoder_filters)-1) + [attention_module]
         else:
-            attention_module = [attention_module]*(len(decoder_filters)-1)
+            attention_module = [attention_module]*(len(decoder_filters))
 
         num_blocks = len(self.feature_layer_names)
         for i, [filters_in, filters_out] in enumerate(zip(decoder_filters_in, decoder_filters)):

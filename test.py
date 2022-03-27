@@ -8,8 +8,12 @@ if __name__ == "__main__":
         print("CUDA IS AVAILABLE")
         device = 'cuda'
     # simple test run
-    input_shape = (3, 3, 128, 128)
-    net = Unet(backbone_name='resnet50', attention_module=MultiplicativeImageAttention, concat_with_input=True, input_shape=input_shape)
+    input_shape = (1, 3,96, 96)
+    net = Unet(backbone_name='resnet50',
+               attention_module=GridAttention,
+               concat_with_input=True,
+               input_shape=input_shape,
+               classes=1)
     net.to(device)
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters())
