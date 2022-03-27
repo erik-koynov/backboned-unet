@@ -4,6 +4,7 @@ from .utils import get_backbone
 from .upsample_block import  UpsampleBlock
 import logging
 from .attention import AdditiveAttention, MultiplicativeImageAttention, GridAttention
+from typing import Union, List
 logger = logging.getLogger("backboned_unet")
 
 class Unet(nn.Module):
@@ -12,11 +13,12 @@ class Unet(nn.Module):
 
     def __init__(self,
                  backbone_name='resnet50',
-                 attention_module: type = None,
+                 attention_module: Union[List[type],type] = None,
                  pretrained=True,
                  encoder_freeze=False,
                  classes=1,
                  decoder_filters=(256, 128, 64, 32, 16),
+                 levels_for_outputs: tuple = None,
                  parametric_upsampling=True,
                  feature_layer_names='default',
                  decoder_use_batchnorm=True,
@@ -27,9 +29,14 @@ class Unet(nn.Module):
                           the upsampling layer is initialized
         concat_with_input: whether to use the raw input to compute attention if the final upsampling is
                           done without skip connection from the backbone
+        levels_for_outputs: list of indices of the levels where a downsampled mask will be used
         """
         super(Unet, self).__init__()
 
+        if levels_for_outputs is None:
+            self.levels_for_outputs = []
+        else:
+            self.levels_for_outputs=levels_for_outputs
         self.concat_with_input = concat_with_input
         self.backbone_name = backbone_name
 
@@ -49,10 +56,11 @@ class Unet(nn.Module):
         decoder_filters_in = [bb_out_chs] + list(decoder_filters[:-1])
 
         # use the more computationally expensive modules only at the last layer
-        if attention_module in [AdditiveAttention, MultiplicativeImageAttention]:
-            attention_module = [GridAttention]*(len(decoder_filters)-1) + [attention_module]
-        else:
-            attention_module = [attention_module]*(len(decoder_filters))
+        if not isinstance(attention_module, list):
+            if attention_module in [AdditiveAttention, MultiplicativeImageAttention]:
+                attention_module = [GridAttention]*(len(decoder_filters)-1) + [attention_module]
+            else:
+                attention_module = [attention_module]*(len(decoder_filters))
 
         num_blocks = len(self.feature_layer_names)
         for i, [filters_in, filters_out] in enumerate(zip(decoder_filters_in, decoder_filters)):
@@ -85,13 +93,21 @@ class Unet(nn.Module):
         """ Forward propagation in U-Net. """
 
         x, features = self.forward_backbone(*input)
+        intermediate_outputs = []
+        for i, (skip_name, upsample_block) in enumerate(zip(self.feature_layer_names[::-1], self.upsample_blocks)):
 
-        for skip_name, upsample_block in zip(self.feature_layer_names[::-1], self.upsample_blocks):
+
             skip_features = features[skip_name]
             x = upsample_block(x, skip_features)
+            if i in self.levels_for_outputs:
+                logger.info(f"storing intermediate output: {i}, : {x.shape}")
+                intermediate_outputs.append(x)
 
         x = self.final_conv(x)
-        return x
+        if len(intermediate_outputs)>0:
+            return x, intermediate_outputs
+        else:
+            return x, None
 
     def forward_backbone(self, x):
 

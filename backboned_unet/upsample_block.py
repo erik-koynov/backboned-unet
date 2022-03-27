@@ -12,7 +12,8 @@ class UpsampleBlock(nn.Module):
 
     def __init__(self, ch_in, ch_out=None, attention: type = None, skip_in=0, use_bn=True, parametric=False):
         super(UpsampleBlock, self).__init__()
-        logger.info(f"Initializing Upsample block with: attention: {attention.__name__ if attention is not None else None}")
+        logger.info(f"Initializing Upsample block with: attention:"
+                    f" {attention.__name__ if (attention is not None) and (skip_in != 0)  else None}")
         ch_out = ch_in / 2 if ch_out is None else ch_out
         self.input_channels = ch_in
 
