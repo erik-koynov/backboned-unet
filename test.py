@@ -2,10 +2,13 @@ from backboned_unet import Unet
 from backboned_unet.attention import GridAttention, AdditiveAttention, MultiplicativeImageAttention
 import torch
 import logging
-logger = logging.getLogger("backboned-unet")
+
 #
 #from segmentation_models import Unet
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger("test")
+    logger.setLevel(logging.DEBUG)
     device = 'cpu'
     if torch.cuda.is_available():
         logger.info("CUDA IS AVAILABLE")
