@@ -1,13 +1,16 @@
 from backboned_unet import Unet
 from backboned_unet.attention import GridAttention, AdditiveAttention, MultiplicativeImageAttention
 import torch
+import logging
 #
 #from segmentation_models import Unet
 if __name__ == "__main__":
     device = 'cpu'
     if torch.cuda.is_available():
-        print("CUDA IS AVAILABLE")
+        logging.info("CUDA IS AVAILABLE")
         device = 'cuda'
+    else:
+        logging.info("CUDA NOT FOUND!")
     # simple test run
     input_shape = (1, 3,224, 224)
     levels_for_outputs = (2,3)
