@@ -53,6 +53,7 @@ class UpsampleBlock(nn.Module):
         self.batch_norm2 = nn.BatchNorm2d(ch_out) if use_bn else None
 
     def forward(self, x, skip_connection=None):
+        attention_mask = None
         logger.info(f"x.shape: {x.shape},"
                     f" skip connection: {skip_connection.shape if skip_connection is not None else None}")
         x = self.upsample(x)
@@ -68,6 +69,7 @@ class UpsampleBlock(nn.Module):
             if self.attention_function is not None:
                 if isinstance(self.attention_function, GridAttention):
                     skip_connection = self.attention_function(x, skip_connection, x)
+                    attention_mask = skip_connection
                 else:
                     skip_connection = self.attention_function(skip_connection, x, skip_connection)
             print(x.shape, skip_connection.shape)
@@ -82,4 +84,5 @@ class UpsampleBlock(nn.Module):
         x = self.batch_norm2(x) if self.batch_norm2 is not None else x
         x = self.relu(x)
 
-        return x
+        return x, attention_mask
+

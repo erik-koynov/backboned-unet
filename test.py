@@ -2,7 +2,7 @@ from backboned_unet import Unet
 from backboned_unet.attention import GridAttention, AdditiveAttention, MultiplicativeImageAttention
 import torch
 import logging
-
+from backboned_unet.metrics import iou
 #
 #from segmentation_models import Unet
 if __name__ == "__main__":
@@ -30,15 +30,18 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(net.parameters())
 
     print('Network initialized. Running a test batch.')
+    attentions = []
     for _ in range(1):
         with torch.set_grad_enabled(True):
             batch = torch.empty(*input_shape).normal_()
             targets = torch.empty(1, 1, *input_shape[2:]).normal_()
 
-            out, intermediate_outputs = net(batch.to(device))
+            out, intermediate_outputs, attention_masks = net(batch.to(device), return_attentions=True)
+            attentions.append([i.detach().to('cpu').numpy() if i is not None else None for i in attention_masks])
             loss = criterion(out, targets.to(device))
             loss.backward()
             optimizer.step()
         print(out.shape)
-
+        print(targets.shape)
+        print(iou(out, targets))
     print('fasza.')

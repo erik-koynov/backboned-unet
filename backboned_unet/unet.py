@@ -88,26 +88,36 @@ class Unet(nn.Module):
         for param in self.backbone.parameters():
             param.requires_grad = False
 
-    def forward(self, *input):
+    def forward(self, *input, return_attentions = False):
 
         """ Forward propagation in U-Net. """
-
+        attention_masks = []
         x, features = self.forward_backbone(*input)
         intermediate_outputs = []
         for i, (skip_name, upsample_block) in enumerate(zip(self.feature_layer_names[::-1], self.upsample_blocks)):
 
 
             skip_features = features[skip_name]
-            x = upsample_block(x, skip_features)
+            if return_attentions:
+                x, attention_mask = upsample_block(x, skip_features)
+                attention_masks.append(attention_mask)
+            else:
+                x, _ = upsample_block(x, skip_features)
+
+
             if i in self.levels_for_outputs:
                 logger.info(f"storing intermediate output: {i}, : {x.shape}")
                 intermediate_outputs.append(x)
 
         x = self.final_conv(x)
-        if len(intermediate_outputs)>0:
-            return x, intermediate_outputs
+        if len(intermediate_outputs)==0:
+            intermediate_outputs = None
+
+
+        if return_attentions:
+            return x, intermediate_outputs, attention_masks
         else:
-            return x, None
+            return x, intermediate_outputs
 
     def forward_backbone(self, x):
 

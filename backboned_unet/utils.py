@@ -2,7 +2,11 @@ from torchvision import models
 
 def get_backbone(name, pretrained=True):
 
-    """ Loading backbone, defining names for skip-connections and encoder output. """
+    """ Loading backbone, defining names for skip-connections and encoder output. 
+    output: backbone: nn.Module
+            skip_layer_names: the names of the layers that are going to be used as for skip connections
+            backbone_output_layer: name of the backbone output layer
+    """
 
     # TODO: More backbones
 
@@ -39,25 +43,25 @@ def get_backbone(name, pretrained=True):
 
     # specifying skip feature and output names
     if name.startswith('resnet'):
-        feature_names = [None, 'relu', 'layer1', 'layer2', 'layer3']
-        backbone_output = 'layer4'
+        skip_layer_names = [None, 'relu', 'layer1', 'layer2', 'layer3']
+        backbone_output_layer = 'layer4'
     elif name == 'vgg16':
         # TODO: consider using a 'bridge' for VGG models, there is just a MaxPool between last skip and backbone output
-        feature_names = ['5', '12', '22', '32', '42']
-        backbone_output = '43'
+        skip_layer_names = ['5', '12', '22', '32', '42']
+        backbone_output_layer = '43'
     elif name == 'vgg19':
-        feature_names = ['5', '12', '25', '38', '51']
-        backbone_output = '52'
+        skip_layer_names = ['5', '12', '25', '38', '51']
+        backbone_output_layer = '52'
     # elif name == 'inception_v3':
-    #     feature_names = [None, 'Mixed_5d', 'Mixed_6e']
-    #     backbone_output = 'Mixed_7c'
+    #     skip_layer_names = [None, 'Mixed_5d', 'Mixed_6e']
+    #     backbone_output_layer = 'Mixed_7c'
     elif name.startswith('densenet'):
-        feature_names = [None, 'relu0', 'denseblock1', 'denseblock2', 'denseblock3']
-        backbone_output = 'denseblock4'
+        skip_layer_names = [None, 'relu0', 'denseblock1', 'denseblock2', 'denseblock3']
+        backbone_output_layer = 'denseblock4'
     elif name == 'unet_encoder':
-        feature_names = ['module1', 'module2', 'module3', 'module4']
-        backbone_output = 'module5'
+        skip_layer_names = ['module1', 'module2', 'module3', 'module4']
+        backbone_output_layer = 'module5'
     else:
         raise NotImplemented('{} backbone model is not implemented so far.'.format(name))
 
-    return backbone, feature_names, backbone_output
+    return backbone, skip_layer_names, backbone_output_layer
