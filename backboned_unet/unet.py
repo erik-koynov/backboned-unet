@@ -88,7 +88,7 @@ class Unet(nn.Module):
         for param in self.backbone.parameters():
             param.requires_grad = False
 
-    def forward(self, *input, return_attentions = False):
+    def forward(self, *input, return_attentions=False):
 
         """ Forward propagation in U-Net. """
         attention_masks = []
