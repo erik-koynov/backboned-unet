@@ -89,28 +89,6 @@ def dice_score(predictions: torch.Tensor,
 
     return dice
 
-class DiceLoss(torch.nn.Module):
-
-    """ Dice score implemented as a nn.Module. """
-
-    def __init__(self, classes, loss_mode='negative_log', ignore_index=255, activation=None):
-        super(DiceLoss, self).__init__()
-        self.classes = classes
-        self.ignore_index = ignore_index
-        self.loss_mode = loss_mode
-        self.activation = activation
-
-    def forward(self, input, target):
-        if self.activation is not None:
-            input = self.activation(input)
-        score = dice_score(input, target, self.classes, self.ignore_index)
-        if self.loss_mode == 'negative_log':
-            eps = 1e-12
-            return (-(score+eps).log()).mean()
-        elif self.loss_mode == 'one_minus':
-            return (1 - score).mean()
-        else:
-            raise ValueError('Loss mode unknown. Please use \'negative_log\' or \'one_minus\'!')
 
 
 if __name__ == "__main__":
