@@ -1,5 +1,5 @@
 from .unet import Unet
-from .metrics import iou,dice_score, DiceLoss
+from .metrics import iou,dice_score
 import logging
 logger = logging.getLogger('backboned_unet')
 logger.setLevel(logging.WARNING)
