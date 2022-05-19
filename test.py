@@ -19,7 +19,7 @@ if __name__ == "__main__":
     input_shape = (1, 3,224, 224)
     levels_for_outputs = (2,3)
     net = Unet(backbone_name='resnet50',
-               attention_module=[None, None, GridAttention, MultiplicativeImageAttention,None],
+               attention_module=[None, None, GridAttention, MultiplicativeImageAttention, MultiplicativeImageAttention],
                concat_with_input=False,
                input_shape=input_shape,
                levels_for_outputs=levels_for_outputs,
@@ -41,6 +41,9 @@ if __name__ == "__main__":
             loss = criterion(out, targets.to(device))
             loss.backward()
             optimizer.step()
+        #out = (out>0).type(torch.int64).squeeze(1)
+        targets = (targets > 0).type(torch.int64).squeeze(1)
+        print(targets.max(), out.max())
         print(out.shape)
         print(targets.shape)
         print(iou(out, targets))

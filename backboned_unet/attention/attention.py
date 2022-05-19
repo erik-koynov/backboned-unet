@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .base import AttentionModule
+from typing import Callable
 import logging
 logger = logging.getLogger('backboned_unet_attention')
 
@@ -57,12 +58,15 @@ class GridAttention(AttentionModule, nn.Module):
         return result
 
 class AdditiveAttention(AttentionModule, nn.Module):
-    def __init__(self, key_channels: int, query_channels: int, out_channels: int):
+    def __init__(self, key_channels: int, query_channels: int, out_channels: int, flattening_mode: str = "mean"):
         super().__init__()
         self.channel_transformation_key = nn.Conv2d(key_channels, out_channels, kernel_size=1)
         self.channel_transformation_value = nn.Conv2d(query_channels, out_channels, kernel_size=1)
         self.non_linearity_pre = nn.Tanh()
-        self.channel_flattening = nn.Conv2d(out_channels, 1, kernel_size=1)
+        if flattening_mode!="mean":
+            self.channel_flattening = nn.Conv2d(out_channels, 1, kernel_size=1)
+        else:
+            self.channel_flattening = lambda x: torch.mean(x, dim=1)
         self.non_linearity_post = nn.Sigmoid()
 
     def compute_attention_map(self, key, query):
@@ -100,13 +104,19 @@ class AdditiveAttention(AttentionModule, nn.Module):
 
 
 class MultiplicativeImageAttention(AttentionModule, nn.Module):
-    def __init__(self, key_channels: int, query_channels: int, out_channels: int):
+    def __init__(self,
+                 key_channels: int,
+                 query_channels: int,
+                 out_channels: int,
+                 non_linearity: Callable = None):
         AttentionModule.__init__(self)
         nn.Module.__init__(self)
         self.channel_transformation_key = nn.Conv2d(key_channels, out_channels, kernel_size=1)
         self.channel_transformation_value = nn.Conv2d(query_channels, out_channels, kernel_size=1)
-
-        self.non_linearity = nn.Sigmoid()
+        if non_linearity is None:
+            self.non_linearity = nn.Sigmoid()
+        else:
+            self.non_linearity = non_linearity
 
     def forward(self, key, query, value, return_attention_mask=False):
         """

@@ -32,6 +32,7 @@ def _onehot_encode(predictions: torch.Tensor,
     :param n_classes: number of classes present
     :return:
     """
+    print('n classes: ', n_classes)
     pred_tensor = torch.nn.functional.one_hot(predictions, num_classes=n_classes).permute(0, 3, 1, 2)
     onehot_gt_tensor = torch.nn.functional.one_hot(labels, num_classes=n_classes).permute(0, 3, 1, 2)
     return pred_tensor, onehot_gt_tensor

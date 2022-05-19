@@ -68,10 +68,11 @@ class UpsampleBlock(nn.Module):
 
             if self.attention_function is not None:
                 if isinstance(self.attention_function, GridAttention):
-                    skip_connection = self.attention_function(x, skip_connection, x)
-                    attention_mask = skip_connection
+                    skip_connection, attention_mask = self.attention_function(x, skip_connection, x, return_attention_mask=True)
+
                 else:
-                    skip_connection = self.attention_function(skip_connection, x, skip_connection)
+                    skip_connection, attention_mask = self.attention_function(skip_connection, x, skip_connection, return_attention_mask=True)
+
             print(x.shape, skip_connection.shape)
             x = concatenate(x, skip_connection)
 
