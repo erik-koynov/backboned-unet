@@ -10,7 +10,15 @@ concatenate = lambda *args: torch.cat(args, dim=1)
 
 class UpsampleBlock(nn.Module):
 
-    def __init__(self, ch_in, ch_out=None, attention: type = None, skip_in=0, use_bn=True, parametric=False):
+    def __init__(self,
+                 ch_in,
+                 ch_out=None,
+                 attention: type = None,
+                 skip_in=0,
+                 use_bn=True,
+                 parametric=False,
+                 attention_channel_size=16,
+                 ):
         super(UpsampleBlock, self).__init__()
         logger.info(f"Initializing Upsample block with: attention:"
                     f" {attention.__name__ if (attention is not None) and (skip_in != 0)  else None}")
@@ -19,10 +27,10 @@ class UpsampleBlock(nn.Module):
 
         if attention is not None and skip_in != 0:
             if attention==GridAttention:
-                self.attention_function = attention(key_channels=ch_out, query_channels=skip_in, out_channels=16)
+                self.attention_function = attention(key_channels=ch_out, query_channels=skip_in, out_channels=attention_channel_size)
                 skip_in = ch_out
             else:
-                self.attention_function = attention(key_channels=skip_in, query_channels=ch_out, out_channels=16)
+                self.attention_function = attention(key_channels=skip_in, query_channels=ch_out, out_channels=attention_channel_size)
         else:
             self.attention_function = None
 

@@ -24,6 +24,7 @@ class Unet(nn.Module, BaseModel):
                  decoder_use_batchnorm=True,
                  concat_with_input=False,
                  input_shape: tuple = (1,3,224,224),
+                 attention_channel_size = 16,
                  retain_grads_layers: List[int] = None):
         """
         attention_module: the class of the attention. The actual object is going to be initialized when
@@ -39,7 +40,7 @@ class Unet(nn.Module, BaseModel):
         levels_for_outputs: list of indices of the levels where a downsampled mask will be used
         """
         super(Unet, self).__init__()
-
+        self.attention_channel_size = attention_channel_size
         if levels_for_outputs is None:
             self.levels_for_outputs = []
         else:
@@ -95,7 +96,8 @@ class Unet(nn.Module, BaseModel):
                                                       attention=attention_module[i],
                                                       skip_in=shortcut_chs[num_blocks-i-1],
                                                       parametric=self.parametric_upsampling,
-                                                      use_bn=self.decoder_use_batchnorm))
+                                                      use_bn=self.decoder_use_batchnorm,
+                                                      attention_channel_size=self.attention_channel_size))
 
         if len(self.levels_for_outputs) > 0:
             self.medium_output_layers = nn.ModuleDict({
