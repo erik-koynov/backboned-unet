@@ -24,7 +24,7 @@ class SoftFocalLoss(nn.Module):
         positive_class = (targets * torch.log(probas + self.eps)) * ((1 - probas) ** self.gamma)
         negative_class = (1 - targets) * torch.log(1 - probas + self.eps) * ((probas) ** self.gamma)
         loss = positive_class + negative_class
-        loss[targets==self.ignore_index] = 0
+        loss[targets == self.ignore_index] = 0
 
         if self.reduction == 'none':
             return -loss
