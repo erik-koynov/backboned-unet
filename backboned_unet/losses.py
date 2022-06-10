@@ -8,19 +8,23 @@ class SoftFocalLoss(nn.Module):
     :param alpha -> class weight (currently not implemented)
     :param gamma -> the down weighting factor (if set to 0 the loss is equal to BCELoss)
     """
-    def __init__(self, alpha: float = None, gamma: float = 2.0,
+    def __init__(self, alpha: float = None,
+                 gamma: float = 2.0,
+                 ignore_index: int = -100,
                  reduction: str = 'mean') -> None:
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
         self.eps = 1e-6
+        self.ignore_index = ignore_index
 
     def forward(self, probas, targets):
 
         positive_class = (targets * torch.log(probas + self.eps)) * ((1 - probas) ** self.gamma)
         negative_class = (1 - targets) * torch.log(1 - probas + self.eps) * ((probas) ** self.gamma)
         loss = positive_class + negative_class
+        loss[targets==self.ignore_index] = 0
 
         if self.reduction == 'none':
             return -loss
