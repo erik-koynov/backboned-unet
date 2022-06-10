@@ -10,7 +10,7 @@ class SoftFocalLoss(nn.Module):
     """
     def __init__(self, alpha: float = None,
                  gamma: float = 2.0,
-                 ignore_index: int = -100,
+                 ignore_index: int = None,
                  reduction: str = 'mean') -> None:
         super().__init__()
         self.alpha = alpha
