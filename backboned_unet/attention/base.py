@@ -48,6 +48,5 @@ class AttentionModule(metaclass=StrictMeta):
         logger.info(f"Attentive representation shape: {result.shape}")
         result = result.view(B, result.shape[1], H, W)
         logger.info(f"Attentive representation final shape: {result.shape}")
-        print(f"Attentive representation final shape: {result.shape}")
 
         return result, attn_mask
