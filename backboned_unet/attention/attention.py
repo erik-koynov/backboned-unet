@@ -7,8 +7,12 @@ import logging
 logger = logging.getLogger('backboned_unet_attention')
 
 class GridAttention(AttentionModule, nn.Module):
-    def __init__(self, key_channels: int, query_channels: int, out_channels: int):
+    def __init__(self, key_channels: int,
+                 query_channels: int,
+                 out_channels: int,
+                 mc_dropout_proba: float =0):
         super().__init__()
+        self.dropout_proba = mc_dropout_proba
         logger.info(f"Initializing {self.__class__}: \n"
               f"key_channels: {key_channels}, query_channels: {query_channels}, out_channels: {out_channels}")
         self.key_transformation = nn.Conv2d(in_channels=key_channels, out_channels=out_channels,
@@ -19,14 +23,17 @@ class GridAttention(AttentionModule, nn.Module):
 
         self.dimensionality_reducer = nn.Conv2d(in_channels=out_channels,
                                                 out_channels=1, kernel_size=1)
+        self.dropout = nn.Dropout(self.dropout_proba)
 
         self.non_linearity_pre = nn.ReLU()
         self.non_linearity_post = nn.Sigmoid()
 
     def compute_attention_map(self, key, query):
         logger.info(f"key before transformation: {key.shape}") # ([B, Ck, Hk, Wk])
+        key = self.dropout(key)
         key_ = self.key_transformation(key)
         logger.info(f"key after transformation: {key_.shape}") # ([B, Ct, Hk, Wk])
+        query = self.dropout(query)
         query_ = self.query_transformation(query)
         logger.info(f"query after transformation: {query_.shape}") # ([B, Ct, Hq, Wq])
         query_ = F.upsample(query_, size=key_.shape[2:], mode='bilinear')
@@ -58,11 +65,17 @@ class GridAttention(AttentionModule, nn.Module):
         return result
 
 class AdditiveAttention(AttentionModule, nn.Module):
-    def __init__(self, key_channels: int, query_channels: int, out_channels: int, flattening_mode: str = "mean"):
+    def __init__(self, key_channels: int,
+                 query_channels: int,
+                 out_channels: int,
+                 flattening_mode: str = "mean",
+                 mc_dropout_proba: float =0):
         super().__init__()
         self.channel_transformation_key = nn.Conv2d(key_channels, out_channels, kernel_size=1)
         self.channel_transformation_value = nn.Conv2d(query_channels, out_channels, kernel_size=1)
         self.non_linearity_pre = nn.Tanh()
+        self.dropout_proba = mc_dropout_proba
+        self.dropout = nn.Dropout(self.dropout_proba)
         if flattening_mode!="mean":
             self.channel_flattening = nn.Conv2d(out_channels, 1, kernel_size=1)
         else:
@@ -70,8 +83,10 @@ class AdditiveAttention(AttentionModule, nn.Module):
         self.non_linearity_post = nn.Sigmoid()
 
     def compute_attention_map(self, key, query):
+        key = self.dropout(key)
         key_ = self.channel_transformation_key(key)
         logger.info(f"key after channel transform: {key_.shape}")
+        query = self.dropout(query)
         query_ = self.channel_transformation_value(query)
         logger.info(f"query after channel transform: {query_.shape}")
         key_ = self.transpose_and_reshape(key_)
@@ -108,11 +123,14 @@ class MultiplicativeImageAttention(AttentionModule, nn.Module):
                  key_channels: int,
                  query_channels: int,
                  out_channels: int,
-                 non_linearity: Callable = None):
+                 non_linearity: Callable = None,
+                 mc_dropout_proba: float =0):
         AttentionModule.__init__(self)
         nn.Module.__init__(self)
         self.channel_transformation_key = nn.Conv2d(key_channels, out_channels, kernel_size=1)
         self.channel_transformation_value = nn.Conv2d(query_channels, out_channels, kernel_size=1)
+        self.dropout_proba = mc_dropout_proba
+        self.dropout = nn.Dropout(self.dropout_proba)
         if non_linearity is None:
             self.non_linearity = nn.Sigmoid()
         else:
@@ -133,9 +151,11 @@ class MultiplicativeImageAttention(AttentionModule, nn.Module):
         Output shape: B,Hk*Wk,Hq*Wq
         """
         # logger.info("input: ", key)
+        key = self.dropout(key)
         key_ = self.channel_transformation_key(key)
         # logger.info('key_: ', key_)
         logger.info(f"key shape after transform: {key_.shape}" )
+        query = self.dropout(query)
         query_ = self.channel_transformation_value(query)
         logger.info(f"query shape after transform: {query_.shape}")
 
