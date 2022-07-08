@@ -6,17 +6,36 @@ from torchvision.transforms import Compose, Normalize
 import logging
 import numpy as np
 import sys
-sys.path.append('../../datasets')
+from pathlib import Path
+import os
+print(os.path.abspath(__file__))
+print(Path(__file__))
+print(os.getcwd())
+file_path = Path(os.getcwd())/Path(__file__).parent
+sys.path.append(str(file_path/Path('../../')))
+sys.path.append(str(file_path/Path('../../invertransforms')))
+#print(sys.path)
+from invertransforms.lib import Invertible
 from datasets.custom_augmentations import standard_scaling, to_rgb
-logger = logging.getLogger("models_logger")
+from tta_tools import FlipsForTTA
+from inference_tools import compute_attention_cam_from_centroid
+logger = logging.getLogger("backboned_unet")
 import os
 import json
 import re
 from importlib import import_module
-
+from typing import Union
+from copy import deepcopy
 
 class StrictMeta(ABCMeta):
     def __new__(cls,  name, bases, attributes):
+        """
+        Force the child class methods that have been named as abstract functions in a base class
+        to have the same signature as in the abstract class
+        :param name: name of the class to create
+        :param bases: the base classes the new class is inheriting from
+        :param attributes: class attributes
+        """
         self = super().__new__(cls, name, bases, attributes,)
         logger.info(f"Creating cls, {type(cls), cls, self, type(self)}")
         logger.info(f"Attributes: {attributes}")
@@ -61,10 +80,136 @@ class BaseModel(metaclass=ABCMeta):
     def load_state_dict(self, *args, **kwargs):
         """load the state dict"""
 
+    def mc_dropout_predictions(self,
+                               input_: Union[np.array,torch.Tensor],
+                               threshold: float = 0.5,
+                               transformations: Compose=None,
+                               num_samples: int = 20,
+                               attention_mask_idx: int = None,
+                               scale_attn_map=True,
+                               do_preprocess=True):
+        """
+        return all predictions made in N stochastic passes through the algorithm
+        :return: T x C x H x W
+        """
+        thresholded_predictions = []
+        predictions = []
+        attention_masks = []
+        for sample in range(num_samples):
+            out_thresholded, _, attention_masks_, out = self.predict(input_,
+                                                                     threshold=threshold,
+                                                                     transformations=transformations,
+                                                                     retrieve_additinal_outputs=True,
+                                                                     keepdim=False,
+                                                                     training_mode=True,
+                                                                     do_preprocess=do_preprocess)
+            thresholded_predictions.append(out_thresholded.detach().cpu())
+            predictions.append(out.detach().cpu())
+            attn_mask = compute_attention_cam_from_centroid(attention_masks_[attention_mask_idx],
+                                                            predictions=out_thresholded,
+                                                            scale=scale_attn_map,
+                                                            resize_to_input=True)[0] # retain only the attn mask on x
+            attention_masks.append(attn_mask[None,None,...])
+
+        return torch.cat(thresholded_predictions), torch.cat(predictions), torch.cat(attention_masks)
+
+
+    def tt_augmentation_predictions(self,
+                                    input_: Union[np.array,torch.Tensor],
+                                    ttest_time_augmentation: Invertible=None,
+                                    threshold: float = 0.5,
+                                    transformations: Compose=None,
+                                    num_samples: int = 12,
+                                    attention_mask_idx: int = None,
+                                    do_preprocess=True,
+                                    training_mode=False,
+                                    return_transformed_inputs=False,
+                                    fill_training_sub=0.,
+                                    ):
+        """
+        input_: single image (for now)
+        :return: B x C x H x W
+        """
+        tta_flips = FlipsForTTA()
+        transformed_inputs = []
+
+        thresholded_predictions = []
+        predictions = []
+        attention_masks = []
+        augmentation_params = []
+
+        fill = ttest_time_augmentation.fill
+
+        for sample in range(num_samples+len(tta_flips)):
+
+            if do_preprocess and sample == 0: # preprocess (once!) before the test time augmentation!
+                input_ = self._preprocess(input_, transformations)
+
+            if sample < len(tta_flips):
+                transformed_input = tta_flips(input_)
+                inv_transform = tta_flips.inverse_transform
+            else:
+
+                transformed_input = ttest_time_augmentation(input_)
+                inv_transform = ttest_time_augmentation.inverse_transform
+
+            if fill is not None:
+                fill_mask = (transformed_input == fill)
+            else:
+                fill_mask = torch.full_like(transformed_input, False)
+
+            print("shape fill_mask: ", fill_mask.shape)
+            do_fill = fill_mask.sum() > 0
+            if do_fill: #
+                transformed_input[fill_mask] = fill_training_sub
+                fill_mask = fill_mask[:, 0:1, ...]
+            augmentation_params.append(deepcopy(ttest_time_augmentation)) # save current state of the random variables
+
+            if return_transformed_inputs:
+                transformed_inputs.append(transformed_input)
+
+            out_thresholded, _, attention_masks_, out = self.predict(transformed_input,
+                                                                     threshold=threshold,
+                                                                     transformations=None,
+                                                                     retrieve_additinal_outputs=True,
+                                                                     keepdim=True,
+                                                                     training_mode=training_mode,
+                                                                     do_preprocess=False)
+            print(f"out shape: {out.shape}")
+
+            aug_out_th = inv_transform(out_thresholded.detach().cpu())
+            aug_out = inv_transform(out.detach().cpu())
+            attn_mask = compute_attention_cam_from_centroid(attention_masks_[attention_mask_idx],
+                                                            predictions=out_thresholded,
+                                                            resize_to_input=True)[0] # retain only the attn mask on x
+            aug_attn = inv_transform(attn_mask[None, None, ...])
+
+            if fill_mask.sum() > 0:
+                print(f'FILL is {fill}')
+                aug_out[fill_mask] = fill
+                aug_out_th[fill_mask] = fill
+                aug_attn[fill_mask] = fill
+
+            thresholded_predictions.append(aug_out_th.squeeze(1))
+            predictions.append(aug_out)
+            attention_masks.append(aug_attn)
+
+        if return_transformed_inputs:
+            return torch.cat(thresholded_predictions), torch.cat(predictions), torch.cat(attention_masks), augmentation_params, transformed_inputs
+
+        return torch.cat(thresholded_predictions), torch.cat(predictions), torch.cat(attention_masks), augmentation_params
+
+
+
+
+
     def predict(self, input_: np.array,
                 threshold=0.5,
                 transformations: Compose=None,
-                retrieve_additinal_outputs: bool = False):
+                retrieve_additinal_outputs: bool = False,
+                keepdim = False,
+                training_mode = False,
+                do_preprocess = True):
         """
         Predict from given input image. The input image can be just loaded image as numpy array with the following
         shape : batch x H x W x C or b x H x W (if the task is binary prediction).
@@ -72,33 +217,51 @@ class BaseModel(metaclass=ABCMeta):
         :param input_:
         :param threshold:
         :param transformations:
-        :return: Output shape -> Batch x H x W
+        :return: Output shape -> Batch x( 1 )x H x W
         """
-        if transformations is None:
-            if len(input_.shape) == 3:
-                input_ = torch.LongTensor(input_)
-                transformations = Compose([standard_scaling, to_rgb, Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-            else:
-                input_ = torch.LongTensor(input_.transpose(0, 3, 1, 2))
-                transformations = Compose([standard_scaling, Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
         # permute the dimensions of the image to C, H, W
-        self.eval()
-        input_ = transformations(input_)
-        out, intermediate_outputs, attention_masks = self.forward(input_, return_attentions=True)
-        if threshold is not None:
-            out = F.sigmoid(out)
-
-            if out.shape[1] > 1:
-                out = torch.argmax(out, dim=1)
-
-            else:
-                out = (out >= threshold).type(torch.int32).squeeze(1) # squeeze the channel dimension
+        if do_preprocess:
+            input_ = self._preprocess(input_, transformations)
+        if not training_mode:
+            self.eval()
+        else:
+            self.train()
 
         if retrieve_additinal_outputs:
+            return self._predict_on_preprocessed_input(input_, threshold, keepdim, retrieve_additinal_outputs=True)
+        return self._predict_on_preprocessed_input(input_, threshold, keepdim, retrieve_additinal_outputs=False)
 
-            return out, intermediate_outputs, attention_masks
-        return out # shape B x H x W
+    def _predict_on_preprocessed_input(self,
+                                       input_: torch.Tensor,
+                                       threshold: float = 0.5,
+                                       keepdim=False,
+                                       retrieve_additinal_outputs: bool = False
+                                       ):
+        out, intermediate_outputs, attention_masks = self.forward(input_, return_attentions=True)
+        out = F.sigmoid(out)
+        out_thresholded = self._apply_treshold(out, threshold, keepdim)
+        if retrieve_additinal_outputs:
+            return out_thresholded, intermediate_outputs, attention_masks, out
+        return out_thresholded, out  # shape B x H x W
+
+
+    def _apply_treshold(self, model_output: torch.Tensor, threshold: float = 0.5, keepdim=False):
+        if threshold is not None:
+
+            if model_output.shape[1] > 1:  # if there are more than 2 classes
+                out = torch.argmax(model_output, dim=1, keepdim=keepdim)
+                logger.warning("Model output has more than one output channel, threshold will be ignored, argmax will"
+                               f"will be output!Output shape: {model_output.shape}")
+
+            else:
+
+                out = (model_output >= threshold).type(torch.int32)
+                if not keepdim:
+                    out = out.squeeze(1)  # squeeze the channel dimension
+            return out
+        else:
+            return model_output
 
     @classmethod
     def from_pretrained(cls, pretrained_path: str):
@@ -108,6 +271,22 @@ class BaseModel(metaclass=ABCMeta):
         model = cls.from_config(config_path)
         model.load_state_dict(torch.load(model_path))
         return model
+
+    def _preprocess(self,
+                    input_: np.array,
+                    transformations: Compose = None):
+        if transformations is None:
+            if len(input_.shape) == 3: # B x H x W
+                input_ = torch.LongTensor(input_)
+                transformations = Compose([standard_scaling, to_rgb, Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+            elif len(input_.shape) == 4:
+                input_ = torch.LongTensor(input_.transpose(0, 3, 1, 2))
+                transformations = Compose([standard_scaling, Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+            else:
+                raise Exception(f"Input is of type: {type(input_)}, with dimensions: {input_.shape}. Possible causes"
+                                f"lack of batch dimension")
+        return transformations(input_)
+
 
     @classmethod
     def from_config(cls, config_path):
