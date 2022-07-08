@@ -1,6 +1,8 @@
 from .metrics import dice_score
 import torch.nn as nn
 import torch
+import logging
+logger = logging.getLogger('backboned_unet')
 
 class SoftFocalLoss(nn.Module):
     """
