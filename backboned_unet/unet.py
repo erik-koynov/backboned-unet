@@ -25,7 +25,9 @@ class Unet(nn.Module, BaseModel):
                  concat_with_input=False,
                  input_shape: tuple = (1,3,224,224),
                  attention_channel_size = 16,
-                 retain_grads_layers: List[int] = None):
+                 retain_grads_layers: List[int] = None,
+                 mc_dropout_proba=0,
+                 mc_dropout_upsample=0):
         """
         attention_module: the class of the attention. The actual object is going to be initialized when
                           the upsampling layer is initialized. Some types of attention that are more
@@ -41,6 +43,8 @@ class Unet(nn.Module, BaseModel):
         """
         super(Unet, self).__init__()
         self.attention_channel_size = attention_channel_size
+        self.mc_dropout_proba = mc_dropout_proba
+        self.mc_dropout_upsample = mc_dropout_upsample
         if levels_for_outputs is None:
             self.levels_for_outputs = []
         else:
@@ -67,7 +71,8 @@ class Unet(nn.Module, BaseModel):
         self.input_shape = input_shape
         
         self.backbone, self.feature_layer_names, self.bb_out_name = get_backbone(self.backbone_name,
-                                                                                 pretrained=self.pretrained)
+                                                                                 pretrained=self.pretrained,
+                                                                                 dropout=self.mc_dropout_proba)
 
 
         shortcut_chs, bb_out_chs = self.infer_skip_channels(input_shape)
@@ -97,7 +102,9 @@ class Unet(nn.Module, BaseModel):
                                                       skip_in=shortcut_chs[num_blocks-i-1],
                                                       parametric=self.parametric_upsampling,
                                                       use_bn=self.decoder_use_batchnorm,
-                                                      attention_channel_size=self.attention_channel_size))
+                                                      attention_channel_size=self.attention_channel_size,
+                                                      mc_dropout_proba=self.mc_dropout_upsample))
+
 
         if len(self.levels_for_outputs) > 0:
             self.medium_output_layers = nn.ModuleDict({
@@ -144,7 +151,7 @@ class Unet(nn.Module, BaseModel):
             # retain grads and respective activations only in eval mode!
             if (self.feature_idx in self.retain_grads_layers) and (not self.training):
                 x.register_hook(self.retain_gradient)
-                self.retained_outputs.append(torch.clone(x).detach())
+                self.retained_outputs.append(torch.clone(x))
 
             self.feature_idx += 1
 
@@ -182,9 +189,9 @@ class Unet(nn.Module, BaseModel):
 
                 # retain grads and respective activations only in eval mode!
                 if (self.feature_idx in self.retain_grads_layers) and (not self.training):
-                    print(f"retraining: {self.feature_idx} in backbone.")
+                    logger.info(f"retraining: {self.feature_idx} in backbone.")
                     x.register_hook(self.retain_gradient)
-                    self.retained_outputs.append(torch.clone(x).detach())
+                    self.retained_outputs.append(torch.clone(x))
                 skip_features[name] = x
                 self.feature_idx += 1
             if name == self.bb_out_name:
