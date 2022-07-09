@@ -6,19 +6,31 @@ from typing import Callable
 import logging
 logger = logging.getLogger('backboned_unet_attention')
 
-class GridAttention(AttentionModule, nn.Module):
+
+class GridAttention(AttentionModule):
     def __init__(self, key_channels: int,
                  query_channels: int,
                  out_channels: int,
-                 mc_dropout_proba: float =0):
-        super().__init__()
+                 mc_dropout_proba: float =0,
+                 position_encoding: type = None,
+                 position_encoding_dim=10,
+                 n_encoding_positions=64 * 64
+                 ):
+        AttentionModule.__init__(self,
+                         key_channels=key_channels,
+                         query_channels=query_channels,
+                         position_encoding=position_encoding,
+                         position_encoding_dim=position_encoding_dim,
+                         n_encoding_positions=n_encoding_positions)
+
+
         self.dropout_proba = mc_dropout_proba
         logger.info(f"Initializing {self.__class__}: \n"
-              f"key_channels: {key_channels}, query_channels: {query_channels}, out_channels: {out_channels}")
-        self.key_transformation = nn.Conv2d(in_channels=key_channels, out_channels=out_channels,
+              f"key_channels: {self.key_channels}, query_channels: {self.query_channels}, out_channels: {out_channels}")
+        self.key_transformation = nn.Conv2d(in_channels=self.key_channels, out_channels=out_channels,
                                             kernel_size=1)
 
-        self.query_transformation = nn.Conv2d(in_channels=query_channels, out_channels=out_channels,
+        self.query_transformation = nn.Conv2d(in_channels=self.query_channels, out_channels=out_channels,
                                               kernel_size=1)
 
         self.dimensionality_reducer = nn.Conv2d(in_channels=out_channels,
@@ -28,12 +40,17 @@ class GridAttention(AttentionModule, nn.Module):
         self.non_linearity_pre = nn.ReLU()
         self.non_linearity_post = nn.Sigmoid()
 
+
     def compute_attention_map(self, key, query):
-        logger.info(f"key before transformation: {key.shape}") # ([B, Ck, Hk, Wk])
         key = self.dropout(key)
+        query = self.dropout(query)
+
+        key = self.position_encoding(key)
+        query = self.position_encoding(query)
+
+        logger.info(f"key before transformation: {key.shape}") # ([B, Ck, Hk, Wk])
         key_ = self.key_transformation(key)
         logger.info(f"key after transformation: {key_.shape}") # ([B, Ct, Hk, Wk])
-        query = self.dropout(query)
         query_ = self.query_transformation(query)
         logger.info(f"query after transformation: {query_.shape}") # ([B, Ct, Hq, Wq])
         query_ = F.upsample(query_, size=key_.shape[2:], mode='bilinear')
@@ -64,29 +81,49 @@ class GridAttention(AttentionModule, nn.Module):
             return result, attention_map
         return result
 
-class AdditiveAttention(AttentionModule, nn.Module):
+class AdditiveAttention(AttentionModule):
     def __init__(self, key_channels: int,
                  query_channels: int,
                  out_channels: int,
                  flattening_mode: str = "mean",
-                 mc_dropout_proba: float =0):
-        super().__init__()
-        self.channel_transformation_key = nn.Conv2d(key_channels, out_channels, kernel_size=1)
-        self.channel_transformation_value = nn.Conv2d(query_channels, out_channels, kernel_size=1)
+                 mc_dropout_proba: float = 0,
+                 position_encoding: type = None,
+                 position_encoding_dim=10,
+                 n_encoding_positions=64 * 64
+                 ):
+        AttentionModule.__init__(self,
+                         key_channels=key_channels,
+                         query_channels=query_channels,
+                         position_encoding=position_encoding,
+                         position_encoding_dim=position_encoding_dim,
+                         n_encoding_positions=n_encoding_positions)
+
+        self.channel_transformation_key = nn.Conv2d(self.key_channels, out_channels, kernel_size=1)
+        self.channel_transformation_value = nn.Conv2d(self.query_channels, out_channels, kernel_size=1)
         self.non_linearity_pre = nn.Tanh()
         self.dropout_proba = mc_dropout_proba
         self.dropout = nn.Dropout(self.dropout_proba)
-        if flattening_mode!="mean":
+        if flattening_mode != "mean":
             self.channel_flattening = nn.Conv2d(out_channels, 1, kernel_size=1)
         else:
             self.channel_flattening = lambda x: torch.mean(x, dim=1)
         self.non_linearity_post = nn.Sigmoid()
 
     def compute_attention_map(self, key, query):
+        """
+        Input Shapes: B,C,H,W
+        Output shape: B,Hk*Wk,Hq*Wq
+        """
+
         key = self.dropout(key)
+        query = self.dropout(query)
+
+        key = self.position_encoding(key)
+        query = self.position_encoding(query)
+
         key_ = self.channel_transformation_key(key)
         logger.info(f"key after channel transform: {key_.shape}")
-        query = self.dropout(query)
+
         query_ = self.channel_transformation_value(query)
         logger.info(f"query after channel transform: {query_.shape}")
         key_ = self.transpose_and_reshape(key_)
@@ -118,17 +155,27 @@ class AdditiveAttention(AttentionModule, nn.Module):
         return result
 
 
-class MultiplicativeImageAttention(AttentionModule, nn.Module):
+class MultiplicativeImageAttention(AttentionModule):
     def __init__(self,
                  key_channels: int,
                  query_channels: int,
                  out_channels: int,
                  non_linearity: Callable = None,
-                 mc_dropout_proba: float =0):
-        AttentionModule.__init__(self)
-        nn.Module.__init__(self)
-        self.channel_transformation_key = nn.Conv2d(key_channels, out_channels, kernel_size=1)
-        self.channel_transformation_value = nn.Conv2d(query_channels, out_channels, kernel_size=1)
+                 mc_dropout_proba: float = 0,
+                 position_encoding: type = None,
+                 position_encoding_dim=10,
+                 n_encoding_positions=64 * 64
+                 ):
+        AttentionModule.__init__(self,
+                         key_channels=key_channels,
+                         query_channels=query_channels,
+                         position_encoding=position_encoding,
+                         position_encoding_dim=position_encoding_dim,
+                         n_encoding_positions=n_encoding_positions)
+
+
+        self.channel_transformation_key = nn.Conv2d(self.key_channels, out_channels, kernel_size=1)
+        self.channel_transformation_value = nn.Conv2d(self.query_channels, out_channels, kernel_size=1)
         self.dropout_proba = mc_dropout_proba
         self.dropout = nn.Dropout(self.dropout_proba)
         if non_linearity is None:
@@ -152,10 +199,15 @@ class MultiplicativeImageAttention(AttentionModule, nn.Module):
         """
         # logger.info("input: ", key)
         key = self.dropout(key)
+        query = self.dropout(query)
+
+        key = self.position_encoding(key)
+        query = self.position_encoding(query)
+
         key_ = self.channel_transformation_key(key)
         # logger.info('key_: ', key_)
         logger.info(f"key shape after transform: {key_.shape}" )
-        query = self.dropout(query)
+
         query_ = self.channel_transformation_value(query)
         logger.info(f"query shape after transform: {query_.shape}")
 

@@ -28,21 +28,26 @@ from typing import Union
 from copy import deepcopy
 
 class StrictMeta(ABCMeta):
-    def __new__(cls,  name, bases, attributes):
+    def __new__(mcs,  name: str, bases: tuple, attributes: dict):
         """
+        Create a new CLASS!
         Force the child class methods that have been named as abstract functions in a base class
         to have the same signature as in the abstract class
         :param name: name of the class to create
         :param bases: the base classes the new class is inheriting from
         :param attributes: class attributes
         """
-        self = super().__new__(cls, name, bases, attributes,)
-        logger.info(f"Creating cls, {type(cls), cls, self, type(self)}")
+        cls = super().__new__(mcs, name, bases, attributes,)
+        logger.info(f"Creating cls, {type(mcs), mcs, cls, type(cls)}")
         logger.info(f"Attributes: {attributes}")
-        logger.info(f"Metaclass: {self.__abstractmethods__}")
-        logger.info(f"MRO: {self.__mro__}")
+        logger.info(f"Metaclass: {mcs}")
+        logger.info(f"MRO: {cls.__mro__}")
 
-        for base in self.__mro__[1:]:
+        return cls
+
+    def __call__(cls, *initialization_args, **initialization_kwargs):
+        attributes = cls.__dict__
+        for base in cls.__mro__[1:]:
             logger.info(f"Base class: {base}")
             if hasattr(base, "__abstractmethods__"):
                 for func in base.__abstractmethods__:
@@ -56,9 +61,7 @@ class StrictMeta(ABCMeta):
                     if current_func_code.co_varnames[:current_func_code.co_argcount]!=base_func_params:
                         raise TypeError(f"Class must define {func} with these parameters: {base_func_params}, "
                                         f"but has {current_func_code.co_varnames[:current_func_code.co_argcount]} instead.")
-
-
-        return self
+        return super().__call__(*initialization_args, **initialization_kwargs)
 
 class BaseModel(metaclass=ABCMeta):
     checkpoint_name = "model.ckpt"

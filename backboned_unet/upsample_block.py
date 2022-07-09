@@ -19,6 +19,9 @@ class UpsampleBlock(nn.Module):
                  parametric=False,
                  attention_channel_size=16,
                  mc_dropout_proba:float = 0,
+                 position_encoding: type = None,
+                 position_encoding_dim=10,
+                 n_encoding_positions=64 * 64
                  ):
         super(UpsampleBlock, self).__init__()
         logger.info(f"Initializing Upsample block with: attention:"
@@ -32,13 +35,19 @@ class UpsampleBlock(nn.Module):
                 self.attention_function = attention(key_channels=ch_out,
                                                     query_channels=skip_in,
                                                     out_channels=attention_channel_size,
-                                                    mc_dropout_proba=self.dropout_proba)
+                                                    mc_dropout_proba=self.dropout_proba,
+                                                    position_encoding= position_encoding,
+                                                    position_encoding_dim=position_encoding_dim,
+                                                    n_encoding_positions=n_encoding_positions)
                 skip_in = ch_out
             else:
                 self.attention_function = attention(key_channels=skip_in,
                                                     query_channels=ch_out,
                                                     out_channels=attention_channel_size,
-                                                    mc_dropout_proba=self.dropout_proba)
+                                                    mc_dropout_proba=self.dropout_proba,
+                                                    position_encoding=position_encoding,
+                                                    position_encoding_dim=position_encoding_dim,
+                                                    n_encoding_positions=n_encoding_positions)
         else:
             self.attention_function = None
 

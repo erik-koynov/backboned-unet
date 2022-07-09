@@ -27,7 +27,11 @@ class Unet(nn.Module, BaseModel):
                  attention_channel_size = 16,
                  retain_grads_layers: List[int] = None,
                  mc_dropout_proba=0,
-                 mc_dropout_upsample=0):
+                 mc_dropout_upsample=0,
+                 position_encoding: type = None,
+                 position_encoding_dim=10,
+                 n_encoding_positions=64 * 64
+                 ):
         """
         attention_module: the class of the attention. The actual object is going to be initialized when
                           the upsampling layer is initialized. Some types of attention that are more
@@ -45,6 +49,10 @@ class Unet(nn.Module, BaseModel):
         self.attention_channel_size = attention_channel_size
         self.mc_dropout_proba = mc_dropout_proba
         self.mc_dropout_upsample = mc_dropout_upsample
+        self.position_encoding: type = position_encoding
+        self.position_encoding_dim = position_encoding_dim
+        self.n_encoding_positions = n_encoding_positions
+
         if levels_for_outputs is None:
             self.levels_for_outputs = []
         else:
@@ -97,13 +105,17 @@ class Unet(nn.Module, BaseModel):
             logger.info('upsample_blocks[{}] in: {}   out: {}'.format(i, filters_in, filters_out))
             # looping backwards
             logger.info(f'Skip connections input channels: {shortcut_chs[num_blocks-i-1]}')
-            self.upsample_blocks.append(UpsampleBlock(filters_in, filters_out,
+            self.upsample_blocks.append(UpsampleBlock(filters_in,
+                                                      filters_out,
                                                       attention=attention_module[i],
                                                       skip_in=shortcut_chs[num_blocks-i-1],
                                                       parametric=self.parametric_upsampling,
                                                       use_bn=self.decoder_use_batchnorm,
                                                       attention_channel_size=self.attention_channel_size,
-                                                      mc_dropout_proba=self.mc_dropout_upsample))
+                                                      mc_dropout_proba=self.mc_dropout_upsample,
+                                                      position_encoding=self.position_encoding,
+                                                      position_encoding_dim=self.position_encoding_dim,
+                                                      n_encoding_positions=self.n_encoding_positions,))
 
 
         if len(self.levels_for_outputs) > 0:

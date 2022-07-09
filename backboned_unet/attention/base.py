@@ -2,9 +2,10 @@ from ..base_classes import StrictMeta
 from abc import abstractmethod
 import torch
 import logging
+from .utils import transpose_and_reshape
 logger = logging.getLogger('backboned_unet_attention')
 
-class AttentionModule(metaclass=StrictMeta):
+class AttentionModuleAbstract(metaclass=StrictMeta):
     @abstractmethod
     def compute_attention_map(self, key, query) -> torch.Tensor:
         """
@@ -17,10 +18,28 @@ class AttentionModule(metaclass=StrictMeta):
         Compute the attentive representation fo the value
         """
 
+class AttentionModule(torch.nn.Module, AttentionModuleAbstract):
+    def __init__(self,
+                 key_channels:int,
+                 query_channels:int,
+                 position_encoding: type = None,
+                 position_encoding_dim=10,
+                 n_encoding_positions=64*64,
+                 **kwargs):
+        super().__init__()
+        if position_encoding is None:
+            self.position_encoding = lambda x: x
+            self.key_channels = key_channels
+            self.query_channels = query_channels
+        else:
+            self.position_encoding = position_encoding(d_hid=position_encoding_dim,
+                                                       n_position=n_encoding_positions)
+            self.key_channels = key_channels+position_encoding_dim
+            self.query_channels = query_channels+position_encoding_dim
+
+
     def transpose_and_reshape(self, tensor):
-        tensor_ = tensor.permute(0, 2, 3, 1)
-        tensor_ = tensor_.view(tensor_.size()[0], tensor_.size()[1] * tensor_.size()[2], tensor_.size()[3])
-        return tensor_
+        return transpose_and_reshape(tensor)
 
     def compute_attentive_representation(self, key, query, value):
         """
