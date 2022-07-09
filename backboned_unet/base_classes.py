@@ -112,7 +112,7 @@ class BaseModel(metaclass=ABCMeta):
                                                             predictions=out_thresholded,
                                                             scale=scale_attn_map,
                                                             resize_to_input=True)[0] # retain only the attn mask on x
-            attention_masks.append(attn_mask[None,None,...])
+            attention_masks.append(attn_mask[None,None,...].cpu())
 
         return torch.cat(thresholded_predictions), torch.cat(predictions), torch.cat(attention_masks)
 
@@ -185,7 +185,7 @@ class BaseModel(metaclass=ABCMeta):
             attn_mask = compute_attention_cam_from_centroid(attention_masks_[attention_mask_idx],
                                                             predictions=out_thresholded,
                                                             resize_to_input=True)[0] # retain only the attn mask on x
-            aug_attn = inv_transform(attn_mask[None, None, ...])
+            aug_attn = inv_transform(attn_mask[None, None, ...].cpu())
 
             if fill_mask.sum() > 0:
                 print(f'FILL is {fill}')
