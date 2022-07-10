@@ -272,7 +272,11 @@ class BaseModel(metaclass=ABCMeta):
         model_path = os.path.join(pretrained_path, BaseModel.checkpoint_name)
         config_path = os.path.join(pretrained_path, BaseModel.config_name)
         model = cls.from_config(config_path)
-        model.load_state_dict(torch.load(model_path))
+        try:
+            model.load_state_dict(torch.load(model_path,))
+        except RuntimeError:
+            model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+
         return model
 
     def _preprocess(self,
