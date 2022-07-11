@@ -316,6 +316,7 @@ class BaseModel(metaclass=ABCMeta):
                 parameters_dict[i] = self.__dict__[i]
 
             except KeyError:
+                logger.info(f"Parameter {i} not found among the member variables.")
                 continue
         return parameters_dict
 
@@ -330,15 +331,17 @@ class BaseModel(metaclass=ABCMeta):
 
         torch.save(self.state_dict(), os.path.join(save_path, BaseModel.checkpoint_name))
         with open(os.path.join(save_path, BaseModel.config_name), 'w') as f:
-            json.dump(self.jsonify(), f)
+            obj_as_dict = self.jsonify()
+            json.dump(obj_as_dict, f)
 
 
     def jsonify(self) -> dict:
         variables_prepared = {}
         for key, value in self.get_initialization_variables().items():
+            print(key, value, isinstance(value, type))
             if isinstance(value, type):
                 variables_prepared[key] = repr(value)
-            if isinstance(value, list):
+            elif isinstance(value, list):
                 value_ = []
                 for element in value:
                     if isinstance(element, type):
