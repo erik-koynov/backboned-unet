@@ -319,8 +319,15 @@ class BaseModel(metaclass=ABCMeta):
                 continue
         return parameters_dict
 
-    def save(self, save_path: str):
-        os.mkdir(save_path)
+    def save(self, save_path: str, overwrite = False):
+        if not overwrite:
+            try:
+                os.mkdir(save_path)
+            except FileExistsError:
+                raise Exception(f"Directory {save_path} exists and overwrite parameter is set to False.")
+        else:
+            Path(save_path).mkdir(exist_ok=True)
+
         torch.save(self.state_dict(), os.path.join(save_path, BaseModel.checkpoint_name))
         with open(os.path.join(save_path, BaseModel.config_name), 'w') as f:
             json.dump(self.jsonify(), f)
