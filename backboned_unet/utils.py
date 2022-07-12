@@ -2,7 +2,20 @@ from torchvision import models
 from torchvision.models.resnet import _resnet
 from .mc_dropout_networks import BasicBlockMcDropout, BackboneMcDropout
 import logging
+from typing import List
+from packaging import version
+import torchvision
 logger = logging.getLogger("backboned_unet")
+
+def resnet(arch: str,
+            block: type,
+            layers: List[int],
+            pretrained: bool,
+            progress: bool,):
+    if version.parse(torchvision.__version__)<version.Version("0.13"):
+        return _resnet(arch, block, layers, pretrained, progress)
+    else:
+        return _resnet(block, layers, pretrained, progress)
 
 def get_backbone(name, pretrained=True, dropout = None):
 
@@ -22,35 +35,35 @@ def get_backbone(name, pretrained=True, dropout = None):
             backbone = models.resnet18(pretrained=pretrained)
         else:
             logger.critical(f"using dropout net with {BasicBlockMcDropout.dropout_proba}")
-            backbone = _resnet("resnet18", BasicBlockMcDropout, [2, 2, 2, 2], pretrained, True)
+            backbone = resnet("resnet18", BasicBlockMcDropout, [2, 2, 2, 2], pretrained, True)
 
     elif name == 'resnet34':
         if dropout is None or dropout == 0:
             backbone = models.resnet34(pretrained=pretrained)
         else:
             logger.critical(f"using dropout net with {BasicBlockMcDropout.dropout_proba}")
-            backbone = _resnet('resnet34', BasicBlockMcDropout, [3, 4, 6, 3], pretrained, True)
+            backbone = resnet('resnet34', BasicBlockMcDropout, [3, 4, 6, 3], pretrained, True)
 
     elif name == 'resnet50':
         if dropout is None or dropout == 0:
             backbone = models.resnet50(pretrained=pretrained)
         else:
             logger.critical(f"using dropout net with {BackboneMcDropout.dropout_proba}")
-            backbone = _resnet("resnet50", BackboneMcDropout, [3, 4, 6, 3], pretrained, True)
+            backbone = resnet("resnet50", BackboneMcDropout, [3, 4, 6, 3], pretrained, True)
 
     elif name == 'resnet101':
         if dropout is None or dropout == 0:
             backbone = models.resnet101(pretrained=pretrained)
         else:
             logger.critical(f"using dropout net with {BackboneMcDropout.dropout_proba}")
-            backbone = _resnet("resnet101", BackboneMcDropout, [3, 4, 23, 3], pretrained, True)
+            backbone = resnet("resnet101", BackboneMcDropout, [3, 4, 23, 3], pretrained, True)
 
     elif name == 'resnet152':
         if dropout is None or dropout == 0:
             backbone = models.resnet152(pretrained=pretrained)
         else:
             logger.critical(f"using dropout net with {BackboneMcDropout.dropout_proba}")
-            backbone = _resnet("resnet152", BackboneMcDropout, [3, 8, 36, 3], pretrained, True)
+            backbone = resnet("resnet152", BackboneMcDropout, [3, 8, 36, 3], pretrained, True)
 
     elif name == 'vgg16':
         backbone = models.vgg16_bn(pretrained=pretrained).features
