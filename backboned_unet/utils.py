@@ -1,5 +1,6 @@
 from torchvision import models
 from torchvision.models.resnet import _resnet
+import torchvision.models.resnet as resnet_module
 from .mc_dropout_networks import BasicBlockMcDropout, BackboneMcDropout
 import logging
 from typing import List
@@ -11,11 +12,13 @@ def resnet(arch: str,
             block: type,
             layers: List[int],
             pretrained: bool,
-            progress: bool,):
+            progress: bool):
     if version.parse(torchvision.__version__)<version.Version("0.13"):
         return _resnet(arch, block, layers, pretrained, progress)
     else:
-        return _resnet(block, layers, pretrained, progress)
+        resnet_number = arch.replace('resnet', '')
+        weights = resnet_module.__dict__[f"ResNet{resnet_number}_Weights"].IMAGENET1K_V1
+        return _resnet(block=block, layers=layers, weights=weights, progress=progress)
 
 def get_backbone(name, pretrained=True, dropout = None):
 
