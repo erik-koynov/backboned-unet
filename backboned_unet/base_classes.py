@@ -370,7 +370,7 @@ class BaseModel(metaclass=ABCMeta):
             if isinstance(value, str) and value.startswith("<class"):
                 variables_postprocessed[key] = preprocess_class_repr(value)
 
-            if isinstance(value, list):
+            elif isinstance(value, list):
                 value_ = []
                 for element in value:
                     if isinstance(element, str) and element.startswith("<class"):
