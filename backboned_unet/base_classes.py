@@ -90,7 +90,9 @@ class BaseModel(metaclass=ABCMeta):
                                num_samples: int = 20,
                                attention_mask_idx: int = None,
                                scale_attn_map=True,
-                               do_preprocess=True):
+                               do_preprocess=True,
+                               resize_attn_to_input=True,
+                               ):
         """
         return all predictions made in N stochastic passes through the algorithm
         :return: T x C x H x W
@@ -111,7 +113,7 @@ class BaseModel(metaclass=ABCMeta):
             attn_mask = compute_attention_cam_from_centroid(attention_masks_[attention_mask_idx],
                                                             predictions=out_thresholded,
                                                             scale=scale_attn_map,
-                                                            resize_to_input=True)[0] # retain only the attn mask on x
+                                                            resize_to_input=resize_attn_to_input)[0] # retain only the attn mask on x
             attention_masks.append(attn_mask[None,None,...].cpu())
 
         return torch.cat(thresholded_predictions), torch.cat(predictions), torch.cat(attention_masks)
@@ -128,6 +130,7 @@ class BaseModel(metaclass=ABCMeta):
                                     training_mode=False,
                                     return_transformed_inputs=False,
                                     fill_training_sub=0.,
+                                    resize_attn_to_input=True
                                     ):
         """
         input_: single image (for now)
@@ -184,7 +187,7 @@ class BaseModel(metaclass=ABCMeta):
             aug_out = inv_transform(out.detach().cpu())
             attn_mask = compute_attention_cam_from_centroid(attention_masks_[attention_mask_idx],
                                                             predictions=out_thresholded,
-                                                            resize_to_input=True)[0] # retain only the attn mask on x
+                                                            resize_to_input=resize_attn_to_input)[0] # retain only the attn mask on x
             aug_attn = inv_transform(attn_mask[None, None, ...].cpu())
 
             if fill_mask.sum() > 0:
